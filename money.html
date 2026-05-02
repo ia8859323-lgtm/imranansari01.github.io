@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafePay - Realtime Banking</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background-color: #f4f7f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); width: 100%; max-width: 380px; text-align: center; }
+        .balance-box { background: #1a73e8; color: white; padding: 20px; border-radius: 10px; margin: 20px 0; }
+        .balance-amount { font-size: 28px; font-weight: bold; }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .btn-google { background: #4285f4; color: white; }
+        .btn-send { background: #34a853; color: white; margin-top: 10px; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        #app-area { display: none; }
+        .infoText { font-size: 12px; color: #666; word-break: break-all; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>SafePay</h2>
+
+    <div id="auth-area">
+        <p>लेन-देन शुरू करने के लिए लॉगिन करें</p>
+        <button class="btn-google" onclick="loginWithGoogle()">Google लॉगिन</button>
+    </div>
+
+    <div id="app-area">
+        <div class="infoText">
+            स्वागत है, <strong id="user-name"></strong><br>
+            ID: <span id="user-uid"></span>
+        </div>
+
+        <div class="balance-box">
+            <div>आपका बैलेंस</div>
+            <div class="balance-amount">₹<span id="balance-display">0</span></div>
+        </div>
+
+        <div style="text-align: left;">
+            <label>प्राप्तकर्ता की ID:</label>
+            <input type="text" id="target-uid" placeholder="UID यहाँ डालें">
+            
+            <label>राशि (₹):</label>
+            <input type="number" id="pay-amount" placeholder="0" min="1">
+            
+            <button class="btn-send" id="pay-btn" onclick="sendMoney()">पैसे भेजें</button>
+        </div>
+        
+        <p id="msg" style="font-size: 13px; margin-top: 10px;"></p>
+        <button onclick="firebase.auth().signOut()" style="background:none; color:red; text-decoration:underline; font-size:12px; margin-top:15px;">लॉग आउट</button>
+    </div>
+</div>
+
+<script>
+    // 1. अपना FIREBASE CONFIG यहाँ डालें
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyBRxmhRbGjvdUY6pUe9L4bIrRwXL7230Hg",
+  authDomain: "cardpay-50c00.firebaseapp.com",
+  databaseURL: "https://cardpay-50c00-default-rtdb.firebaseio.com",
+  projectId: "cardpay-50c00",
+  storageBucket: "cardpay-50c00.firebasestorage.app",
+  messagingSenderId: "923476412963",
+  appId: "1:923476412963:web:19c6de7aa5666956227f96",
+  measurementId: "G-NSJ4EE23BZ"
+};
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const rtdb = firebase.database();
+
+    // 2. गूगल लॉगिन फंक्शन
+    function loginWithGoogle() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider).catch(e => alert(e.message));
+    }
+
+    // 3. ऑथेंटिकेशन स्टेट चेक
+    auth.onAuthStateChanged(async (user) => {
+        if (user) {
+            document.getElementById('auth-area').style.display = 'none';
+            document.getElementById('app-area').style.display = 'block';
+            document.getElementById('user-name').innerText = user.displayName;
+            document.getElementById('user-uid').innerText = user.uid;
+            
+            // नया अकाउंट सेटअप (Rules: Only if not exists)
+            setupNewAccount(user);
+            // लाइव बैलेंस अपडेट
+            fetchLiveBalance(user.uid);
+        } else {
+            document.getElementById('auth-area').style.display = 'block';
+            document.getElementById('app-area').style.display = 'none';
+        }
+    });
+
+    // 4. अकाउंट सेटअप (Rules के हिसाब से name, email और 0 balance)
+    function setupNewAccount(user) {
+        const userRef = rtdb.ref('users/' + user.uid);
+        userRef.once('value', snapshot => {
+            if (!snapshot.exists()) {
+                userRef.set({
+                    name: user.displayName,
+                    email: user.email,
+                    balance: 0
+                });
+            }
+        });
+    }
+
+    // 5. लाइव बैलेंस सुनना
+    function fetchLiveBalance(uid) {
+        rtdb.ref('users/' + uid + '/balance').on('value', snap => {
+            document.getElementById('balance-display').innerText = snap.val() || 0;
+        });
+    }
+
+    // 6. बैंकिंग ग्रेड ट्रांजैक्शन (Atomic Transaction)
+    function sendMoney() {
+        const targetUid = document.getElementById('target-uid').value.trim();
+        const amount = parseInt(document.getElementById('pay-amount').value);
+        const myUid = auth.currentUser.uid;
+        const msg = document.getElementById('msg');
+        const btn = document.getElementById('pay-btn');
+
+        if (!targetUid || isNaN(amount) || amount <= 0) {
+            msg.innerText = "सही डेटा डालें!";
+            return;
+        }
+        if (targetUid === myUid) {
+            msg.innerText = "खुद को पैसे नहीं भेज सकते!";
+            return;
+        }
+
+        btn.disabled = true;
+        msg.innerText = "प्रोसेसिंग...";
+        msg.style.color = "blue";
+
+        // सेंडर का बैलेंस चेक और अपडेट
+        const senderBalanceRef = rtdb.ref('users/' + myUid + '/balance');
+        const receiverBalanceRef = rtdb.ref('users/' + targetUid + '/balance');
+
+        senderBalanceRef.transaction((currentBalance) => {
+            if (currentBalance === null) return 0;
+            if (currentBalance < amount) {
+                return; // ट्रांजैक्शन रुक जाएगा (अपर्याप्त बैलेंस)
+            }
+            return currentBalance - amount;
+        }, (error, committed, snapshot) => {
+            if (committed) {
+                // सेंडर का पैसा कट गया, अब रिसीवर में जोड़ें
+                receiverBalanceRef.transaction((revBalance) => {
+                    return (revBalance || 0) + amount;
+                });
+
+                // रसीद बनाएँ (Transactions collection)
+                const txRef = rtdb.ref('transactions').push();
+                txRef.set({
+                    senderId: myUid,
+                    receiverId: targetUid,
+                    amount: amount,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+
+                msg.innerText = "सफलता! ₹" + amount + " भेज दिए गए।";
+                msg.style.color = "green";
+                document.getElementById('pay-amount').value = "";
+            } else {
+                msg.innerText = "फेल: बैलेंस कम है या ID गलत है।";
+                msg.style.color = "red";
+            }
+            btn.disabled = false;
+        });
+    }
+</script>
+
+</body>
+</html>
