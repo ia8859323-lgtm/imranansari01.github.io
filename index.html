@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafePay Pro - Premium Banking</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --text-main: #2c3e50;
+            --shadow-light: #ffffff;
+            --shadow-dark: #d1d9e6;
+            --google-blue: #1a73e8;
+            --success-green: #27ae60;
+        }
+
+        * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, sans-serif; transition: all 0.2s ease; }
+        body { background-color: var(--bg-color); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+
+        .container { 
+            background: var(--bg-color); padding: 40px 25px; border-radius: 40px; 
+            box-shadow: 20px 20px 60px var(--shadow-dark), -20px -20px 60px var(--shadow-light); 
+            width: 100%; max-width: 420px; text-align: center; 
+        }
+
+        /* प्रोफेशनल हेडर डिजाइन */
+        .header-profile {
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--bg-color); padding: 15px 20px; border-radius: 20px;
+            box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+            margin-bottom: 25px; text-align: left;
+        }
+        .header-info h4 { margin: 0; color: var(--google-blue); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+        .header-info p { margin: 2px 0 0 0; font-size: 16px; font-weight: 700; color: var(--text-main); }
+
+        .btn-google { 
+            background: var(--bg-color); border: none; border-radius: 50px; padding: 15px 25px;
+            display: flex; align-items: center; justify-content: space-between; width: 100%; cursor: pointer;
+            box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light);
+        }
+
+        /* बैलेंस सेक्शन */
+        .balance-box { 
+            background: var(--bg-color); padding: 25px; border-radius: 25px; margin: 25px 0; 
+            box-shadow: inset 8px 8px 16px var(--shadow-dark), inset -8px -8px 16px var(--shadow-light);
+        }
+
+        /* इनपुट और बटन */
+        input { 
+            width: 100%; padding: 16px; margin: 12px 0; border: none; border-radius: 15px; 
+            background: var(--bg-color); box-shadow: inset 6px 6px 12px var(--shadow-dark), inset -6px -6px 12px var(--shadow-light);
+            outline: none; font-weight: 500;
+        }
+
+        .btn-send {
+            width: 100%; padding: 16px; border-radius: 15px; border: none; font-weight: 700;
+            background: var(--bg-color); color: var(--success-green); cursor: pointer;
+            box-shadow: 6px 6px 12px var(--shadow-dark), -6px -6px 12px var(--shadow-light);
+        }
+
+        /* इतिहास कार्ड्स - नाम के साथ */
+        .history-item { 
+            background: var(--bg-color); padding: 15px; border-radius: 15px; margin-bottom: 15px;
+            box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .history-details { text-align: left; }
+        .history-name { font-weight: 700; font-size: 14px; color: var(--text-main); }
+        .history-type { font-size: 11px; color: #7f8c8d; }
+
+        #app-area, #auth-area { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="auth-area" style="display: block;">
+        <div style="margin-bottom: 30px;">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" width="30">
+            <h2 style="color: var(--google-blue); margin-top: 10px;">SafePay Pro</h2>
+        </div>
+        <button class="btn-google" onclick="loginWithGoogle()">
+            <div style="width:20px"></div>
+            <span style="font-weight:600;">Sign in with Google</span>
+            <div style="width:30px; height:30px; border-radius:50%; box-shadow: inset 2px 2px 5px var(--shadow-dark); display:flex; align-items:center; justify-content:center; color:#bdc3c7;">🔒</div>
+        </button>
+    </div>
+
+    <div id="app-area">
+        <div class="header-profile">
+            <div class="header-info">
+                <h4>Verified Account</h4>
+                <p id="user-name-top">Loading...</p>
+            </div>
+            <button onclick="auth.signOut()" style="background:none; border:none; color:#e74c3c; font-size:11px; font-weight:bold; cursor:pointer;">LOGOUT</button>
+        </div>
+
+        <div class="balance-box">
+            <div style="font-size:13px; color:#7f8c8d; font-weight:600;">AVAILABLE BALANCE</div>
+            <div style="font-size:36px; font-weight:800; color:var(--google-blue); margin-top:5px;">₹<span id="balance-display">0</span></div>
+        </div>
+
+        <div style="text-align: left; padding: 0 5px;">
+            <label style="font-size:12px; font-weight:700; color:#7f8c8d; margin-left:5px;">TRANSFER TO UID</label>
+            <input type="text" id="target-uid" placeholder="Recipient UID" oninput="checkRecipientName()">
+            <div id="receiver-name-display" style="font-size:12px; font-weight:bold; height:15px; margin-bottom:10px; padding-left:5px;"></div>
+            
+            <input type="number" id="pay-amount" placeholder="Amount (₹)">
+            <button class="btn-send" id="pay-btn" onclick="sendMoney()">SEND SECURELY</button>
+        </div>
+
+        <p id="msg" style="font-size:12px; margin-top:15px; font-weight:600;"></p>
+
+        <div style="margin-top: 35px; text-align: left;">
+            <h4 style="font-size:14px; color:#7f8c8d; border-bottom: 1px solid #d1d9e6; padding-bottom: 10px; margin-bottom: 15px;">RECENT TRANSACTIONS</h4>
+            <div id="history-list" style="max-height: 250px; overflow-y: auto; padding: 5px;"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBRxmhRbGjvdUY6pUe9L4bIrRwXL7230Hg",
+      authDomain: "cardpay-50c00.firebaseapp.com",
+      databaseURL: "https://cardpay-50c00-default-rtdb.firebaseio.com",
+      projectId: "cardpay-50c00",
+      storageBucket: "cardpay-50c00.firebasestorage.app",
+      messagingSenderId: "923476412963",
+      appId: "1:923476412963:web:19c6de7aa5666956227f96"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const rtdb = firebase.database();
+
+    function loginWithGoogle() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider);
+    }
+
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            document.getElementById('auth-area').style.display = 'none';
+            document.getElementById('app-area').style.display = 'block';
+            document.getElementById('user-name-top').innerText = user.displayName;
+            setupAccount(user);
+            fetchBalance(user.uid);
+            loadHistory(user.uid);
+        } else {
+            document.getElementById('auth-area').style.display = 'block';
+            document.getElementById('app-area').style.display = 'none';
+        }
+    });
+
+    function setupAccount(user) {
+        rtdb.ref('users/' + user.uid).once('value', snap => {
+            if (!snap.exists()) {
+                rtdb.ref('users/' + user.uid).set({ name: user.displayName, email: user.email, balance: 100 });
+            }
+        });
+    }
+
+    function fetchBalance(uid) {
+        rtdb.ref('users/' + uid + '/balance').on('value', snap => {
+            document.getElementById('balance-display').innerText = snap.val() || 0;
+        });
+    }
+
+    function checkRecipientName() {
+        const tid = document.getElementById('target-uid').value.trim();
+        const disp = document.getElementById('receiver-name-display');
+        if (tid.length > 15) {
+            rtdb.ref('users/' + tid + '/name').once('value', snap => {
+                disp.innerText = snap.exists() ? "Verified: " + snap.val() : "Account Not Found";
+                disp.style.color = snap.exists() ? "#27ae60" : "#e74c3c";
+            });
+        } else { disp.innerText = ""; }
+    }
+
+    function sendMoney() {
+        const target = document.getElementById('target-uid').value.trim();
+        const amt = parseInt(document.getElementById('pay-amount').value);
+        const myUid = auth.currentUser.uid;
+        const myName = auth.currentUser.displayName;
+
+        if (!target || isNaN(amt) || amt <= 0 || target === myUid) return;
+
+        rtdb.ref('users/' + target + '/name').once('value', nSnap => {
+            const targetName = nSnap.val() || "Unknown";
+            rtdb.ref('users/' + myUid + '/balance').transaction(curr => {
+                if (curr >= amt) return curr - amt;
+            }, (err, committed) => {
+                if (committed) {
+                    rtdb.ref('users/' + target + '/balance').transaction(c => (c || 0) + amt);
+                    rtdb.ref('transactions').push({
+                        senderId: myUid, senderName: myName,
+                        receiverId: target, receiverName: targetName,
+                        amount: amt, timestamp: Date.now()
+                    });
+                    document.getElementById('msg').innerText = "Transfer Successful!";
+                }
+            });
+        });
+    }
+
+    function loadHistory(uid) {
+        const list = document.getElementById('history-list');
+        rtdb.ref('transactions').on('value', snap => {
+            list.innerHTML = "";
+            snap.forEach(child => {
+                const tx = child.val();
+                if (tx.senderId === uid || tx.receiverId === uid) {
+                    const isSent = tx.senderId === uid;
+                    const personName = isSent ? tx.receiverName : tx.senderName;
+                    const div = document.createElement('div');
+                    div.className = "history-item";
+                    div.innerHTML = `
+                        <div class="history-details">
+                            <div class="history-name">${personName || "User"}</div>
+                            <div class="history-type">${isSent ? 'Money Sent' : 'Money Received'}</div>
+                        </div>
+                        <b style="color:${isSent ? '#e74c3c' : '#27ae60'}">${isSent ? '-' : '+'} ₹${tx.amount}</b>
+                    `;
+                    list.prepend(div);
+                }
+            });
+        });
+    }
+</script>
+</body>
+</html>
