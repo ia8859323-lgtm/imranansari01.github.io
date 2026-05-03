@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafePay - Realtime Banking</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <style>
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 15px; }
+        .container { background: #fff; padding: 25px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        .balance-box { background: linear-gradient(135deg, #1a73e8, #0d47a1); color: white; padding: 25px; border-radius: 12px; margin: 15px 0; }
+        .balance-amount { font-size: 32px; font-weight: bold; margin-top: 5px; }
+        input { width: 100%; padding: 14px; margin: 10px 0; border: 1.5px solid #eee; border-radius: 8px; outline: none; transition: 0.3s; }
+        input:focus { border-color: #1a73e8; background: #f8fbff; }
+        button { width: 100%; padding: 14px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-google { background: #4285f4; color: white; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .btn-send { background: #34a853; color: white; margin-top: 10px; font-size: 16px; }
+        .btn-send:active { transform: scale(0.98); }
+        button:disabled { background: #bdc3c7; cursor: not-allowed; }
+        #app-area { display: none; }
+        .infoText { font-size: 11px; color: #7f8c8d; text-align: left; margin-bottom: 15px; background: #f9f9f9; padding: 10px; border-radius: 8px; border-left: 3px solid #1a73e8; }
+        
+        .history-section { margin-top: 30px; text-align: left; border-top: 2px solid #f0f2f5; padding-top: 20px; }
+        .history-item { padding: 12px; border-bottom: 1px solid #f8f9fa; display: flex; justify-content: space-between; align-items: center; }
+        .history-list { max-height: 280px; overflow-y: auto; margin-top: 10px; scrollbar-width: none; }
+        #receiver-name-display { font-size: 13px; font-weight: bold; color: #1a73e8; min-height: 18px; margin-bottom: 5px; }
+        .sent-amt { color: #e74c3c; font-weight: bold; }
+        .recv-amt { color: #27ae60; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2 style="color: #1a73e8; margin-bottom: 5px;">SafePay</h2>
+    <p style="font-size: 12px; color: #666; margin-bottom: 20px;">Card Pay सुरक्षित बैंकिंग</p>
+
+    <div id="auth-area">
+        <button class="btn-google" onclick="loginWithGoogle()">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/action/google.svg" width="18" alt="">
+            Google के साथ लॉगिन करें
+        </button>
+    </div>
+
+    <div id="app-area">
+        <div class="infoText">
+            स्वागत है, <strong id="user-name"></strong><br>
+            <small>UID: <span id="user-uid" style="font-family: monospace;"></span></small>
+        </div>
+
+        <div class="balance-box">
+            <div style="font-size: 14px; opacity: 0.9;">कुल बैलेंस</div>
+            <div class="balance-amount">₹<span id="balance-display">0</span></div>
+        </div>
+
+        <div style="text-align: left;">
+            <label style="font-size: 13px; font-weight: bold; color: #333;">प्राप्तकर्ता की ID:</label>
+            <input type="text" id="target-uid" placeholder="यहाँ UID पेस्ट करें" oninput="checkRecipientName()">
+            <div id="receiver-name-display"></div> 
+            
+            <label style="font-size: 13px; font-weight: bold; color: #333;">भेजने वाली राशि (₹):</label>
+            <input type="number" id="pay-amount" placeholder="0.00" min="1">
+            
+            <button class="btn-send" id="pay-btn" onclick="sendMoney()">अभी ट्रांसफर करें</button>
+        </div>
+        
+        <p id="msg" style="font-size: 13px; margin-top: 12px; font-weight: 500;"></p>
+
+        <div class="history-section">
+            <h4 style="margin: 0; display: flex; justify-content: space-between; align-items: center; color: #2c3e50;">
+                <span>लेन-देन इतिहास</span>
+                <button onclick="loadTransactionHistory(auth.currentUser.uid)" style="width:auto; padding:5px 10px; font-size:10px; background:#eee; color:#555;">रिफ्रेश</button>
+            </h4>
+            <div id="history-list" class="history-list">
+                <p style="color: #bdc3c7; font-size: 12px; text-align: center; margin-top: 20px;">रिकॉर्ड खोजा जा रहा है...</p>
+            </div>
+        </div>
+
+        <button onclick="firebase.auth().signOut()" style="background:none; color:#e74c3c; text-decoration:underline; font-size:12px; margin-top:20px; width: auto; border:none;">सुरक्षित लॉग आउट</button>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBRxmhRbGjvdUY6pUe9L4bIrRwXL7230Hg",
+      authDomain: "cardpay-50c00.firebaseapp.com",
+      databaseURL: "https://cardpay-50c00-default-rtdb.firebaseio.com",
+      projectId: "cardpay-50c00",
+      storageBucket: "cardpay-50c00.firebasestorage.app",
+      messagingSenderId: "923476412963",
+      appId: "1:923476412963:web:19c6de7aa5666956227f96",
+      measurementId: "G-NSJ4EE23BZ"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const rtdb = firebase.database();
+
+    function loginWithGoogle() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider).catch(e => alert("लॉगिन एरर: " + e.message));
+    }
+
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            document.getElementById('auth-area').style.display = 'none';
+            document.getElementById('app-area').style.display = 'block';
+            document.getElementById('user-name').innerText = user.displayName;
+            document.getElementById('user-uid').innerText = user.uid;
+            
+            setupNewAccount(user);
+            fetchLiveBalance(user.uid);
+            loadTransactionHistory(user.uid);
+        } else {
+            document.getElementById('auth-area').style.display = 'block';
+            document.getElementById('app-area').style.display = 'none';
+            rtdb.ref('transactions').off();
+            rtdb.ref('users').off();
+        }
+    });
+
+    function setupNewAccount(user) {
+        const userRef = rtdb.ref('users/' + user.uid);
+        userRef.once('value', snapshot => {
+            if (!snapshot.exists()) {
+                userRef.set({ name: user.displayName, email: user.email, balance: 0 });
+            }
+        });
+    }
+
+    function fetchLiveBalance(uid) {
+        rtdb.ref('users/' + uid + '/balance').on('value', snap => {
+            document.getElementById('balance-display').innerText = snap.val() || 0;
+        });
+    }
+
+    function checkRecipientName() {
+        const tid = document.getElementById('target-uid').value.trim();
+        const display = document.getElementById('receiver-name-display');
+        
+        if (tid.length > 15) {
+            rtdb.ref('users/' + tid + '/name').once('value', snap => {
+                if (snap.exists()) {
+                    display.innerText = "✓ प्राप्तकर्ता: " + snap.val();
+                    display.style.color = "#27ae60";
+                } else {
+                    display.innerText = "✕ यूज़र ID नहीं मिली";
+                    display.style.color = "#e74c3c";
+                }
+            });
+        } else {
+            display.innerText = "";
+        }
+    }
+
+    // --- यहाँ से नया Atomic Update वाला लॉजिक शुरू होता है ---
+    function sendMoney() {
+        const targetUid = document.getElementById('target-uid').value.trim();
+        const amount = parseInt(document.getElementById('pay-amount').value);
+        const myUid = auth.currentUser.uid;
+        const msg = document.getElementById('msg');
+        const btn = document.getElementById('pay-btn');
+
+        if (!targetUid || isNaN(amount) || amount <= 0) {
+            msg.innerText = "कृपया सही राशि और ID दर्ज करें।";
+            msg.style.color = "#f39c12";
+            return;
+        }
+        if (targetUid === myUid) {
+            msg.innerText = "स्वयं को पैसे भेजना संभव नहीं है।";
+            msg.style.color = "#e74c3c";
+            return;
+        }
+
+        btn.disabled = true;
+        msg.innerText = "पेमेंट प्रोसेस किया जा रहा है...";
+        msg.style.color = "#1a73e8";
+
+        // एक साथ सेंडर और रिसीवर का बैलेंस चेक और अपडेट करना
+        rtdb.ref('users/' + myUid + '/balance').once('value').then(senderSnap => {
+            const currentSenderBalance = senderSnap.val() || 0;
+
+            if (currentSenderBalance < amount) {
+                msg.innerText = "भुगतान असफल: बैलेंस कम है।";
+                msg.style.color = "#e74c3c";
+                btn.disabled = false;
+                return;
+            }
+
+            // रिसीवर का मौजूदा बैलेंस लाना
+            rtdb.ref('users/' + targetUid + '/balance').once('value').then(targetSnap => {
+                const currentTargetBalance = targetSnap.val() || 0;
+                const receiverNameFull = document.getElementById('receiver-name-display').innerText.replace("✓ प्राप्तकर्ता: ", "");
+
+                // Atomic Update ऑब्जेक्ट तैयार करना
+                let updates = {};
+                updates['/users/' + myUid + '/balance'] = currentSenderBalance - amount;
+                updates['/users/' + targetUid + '/balance'] = currentTargetBalance + amount;
+
+                // ट्रांजैक्शन रसीद भी इसी अपडेट में शामिल है
+                const newTxKey = rtdb.ref().child('transactions').push().key;
+                updates['/transactions/' + newTxKey] = {
+                    senderId: myUid,
+                    senderName: auth.currentUser.displayName,
+                    receiverId: targetUid,
+                    receiverName: receiverNameFull || "अज्ञात यूज़र",
+                    amount: amount,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                };
+
+                // .update() फंक्शन सुनिश्चित करता है कि या तो सब कुछ अपडेट होगा, या कुछ भी नहीं
+                rtdb.ref().update(updates, (error) => {
+                    if (error) {
+                        msg.innerText = "त्रुटि: " + error.message;
+                        msg.style.color = "#e74c3c";
+                    } else {
+                        msg.innerText = "सफलता! ₹" + amount + " भेज दिए गए।";
+                        msg.style.color = "#27ae60";
+                        document.getElementById('pay-amount').value = "";
+                        document.getElementById('target-uid').value = "";
+                        document.getElementById('receiver-name-display').innerText = "";
+                    }
+                    btn.disabled = false;
+                });
+            });
+        });
+    }
+    // --- यहाँ पर नया लॉजिक समाप्त होता है ---
+
+    function loadTransactionHistory(uid) {
+        const historyList = document.getElementById('history-list');
+        rtdb.ref('transactions').on('value', snap => {
+            historyList.innerHTML = "";
+            let txArray = [];
+
+            snap.forEach(child => {
+                const tx = child.val();
+                if (tx.senderId === uid || tx.receiverId === uid) {
+                    txArray.push(tx);
+                }
+            });
+
+            if (txArray.length === 0) {
+                historyList.innerHTML = "<p style='text-align:center; color:#bdc3c7; font-size:12px; margin-top:20px;'>कोई लेन-देन नहीं मिला।</p>";
+                return;
+            }
+
+            txArray.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+            txArray.forEach(tx => {
+                const isSent = tx.senderId === uid;
+                const person = isSent ? tx.receiverName : tx.senderName;
+                const personId = isSent ? tx.receiverId : tx.senderId;
+                const date = tx.timestamp ? new Date(tx.timestamp).toLocaleString('hi-IN', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' }) : "अभी";
+                
+                const item = document.createElement('div');
+                item.className = "history-item";
+                item.innerHTML = `
+                    <div>
+                        <div style="font-weight:600; color:#2c3e50;">${isSent ? 'To: ' : 'From: '}${person}</div>
+                        <div style="font-size:9px; color:#95a5a6; font-family:monospace;">ID: ...${personId.slice(-6)}</div>
+                        <div style="font-size:10px; color:#bdc3c7; margin-top:2px;">${date}</div>
+                    </div>
+                    <div class="${isSent ? 'sent-amt' : 'recv-amt'}">
+                        ${isSent ? '-' : '+'} ₹${tx.amount}
+                    </div>
+                `;
+                historyList.appendChild(item);
+            });
+        });
+    }
+</script>
+
+</body>
+</html>
