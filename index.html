@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafePay Pro - Secure Banking</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --text-main: #2c3e50;
+            --shadow-light: #ffffff;
+            --shadow-dark: #d1d9e6;
+            --google-blue: #1a73e8;
+            --google-red: #ea4335;
+            --google-yellow: #fbbc05;
+            --google-green: #34a853;
+            --success-green: #27ae60;
+        }
+
+        * { box-sizing: border-box; font-family: 'Segoe UI', Roboto, sans-serif; transition: all 0.2s ease; }
+        body { background-color: var(--bg-color); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 25px; }
+
+        .container { 
+            background: var(--bg-color); padding: 45px 30px; border-radius: 50px; 
+            box-shadow: 20px 20px 60px var(--shadow-dark), -20px -20px 60px var(--shadow-light); 
+            width: 100%; max-width: 420px; text-align: center; 
+        }
+
+        .google-logo-3d-container {
+            width: 95px; height: 95px; border-radius: 50%; background: var(--bg-color);
+            display: flex; align-items: center; justify-content: center; margin: 0 auto 35px auto;
+            box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light);
+            padding: 12px; animation: logoPulse 6s infinite ease-in-out;
+        }
+
+        .google-g-svg { width: 100%; height: 100%; animation: colorShiftDepth 12s infinite linear; }
+
+        @keyframes logoPulse {
+            0%, 100% { transform: scale(1); box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light); }
+            50% { transform: scale(1.02); box-shadow: 10px 10px 20px var(--shadow-dark), -10px -10px 20px var(--shadow-light); }
+        }
+
+        @keyframes colorShiftDepth {
+            0%, 100% { filter: drop-shadow(inset 2px 2px 3px rgba(0,0,0,0.15)) drop-shadow(1px 1px 1px rgba(255,255,255,0.5)); }
+            50% { filter: drop-shadow(inset 2px 3px 4px rgba(234, 67, 53, 0.2)) drop-shadow(1px 1px 1px rgba(255,255,255,0.7)); }
+        }
+
+        .header-profile {
+            background: var(--bg-color); padding: 22px; border-radius: 25px;
+            box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light);
+            margin-bottom: 30px; text-align: left; position: relative;
+        }
+        .header-info h4 { margin: 0; color: var(--google-blue); font-size: 11px; text-transform: uppercase; letter-spacing: 1.2px; font-weight: 800; }
+        .header-info p { margin: 6px 0 2px 0; font-size: 18px; font-weight: 700; color: var(--text-main); text-transform: capitalize; }
+        
+        .user-uid-box {
+            font-size: 10px; color: #7f8c8d; background: rgba(0, 0, 0, 0.04);
+            padding: 6px 10px; border-radius: 10px; display: inline-block;
+            font-family: monospace; letter-spacing: 0.5px; margin-top: 8px;
+            box-shadow: inset 2px 2px 5px var(--shadow-dark);
+        }
+
+        .balance-box { 
+            background: var(--bg-color); padding: 35px 20px; border-radius: 30px; margin: 30px 0; 
+            box-shadow: inset 10px 10px 20px var(--shadow-dark), inset -10px -10px 20px var(--shadow-light);
+        }
+
+        input { 
+            width: 100%; padding: 18px; margin: 15px 0; border: none; border-radius: 18px; 
+            background: var(--bg-color); box-shadow: inset 6px 6px 12px var(--shadow-dark), inset -6px -6px 12px var(--shadow-light);
+            outline: none; font-weight: 600; color: var(--text-main); font-size: 15px;
+        }
+
+        .btn-send {
+            width: 100%; padding: 20px; border-radius: 20px; border: none; font-weight: 800;
+            background: var(--bg-color); color: var(--success-green); cursor: pointer;
+            box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light);
+            text-transform: uppercase; letter-spacing: 1.5px; margin-top: 10px;
+        }
+        .btn-send:active:not(:disabled) { box-shadow: inset 4px 4px 8px var(--shadow-dark), inset -4px -4px 8px var(--shadow-light); transform: scale(0.97); }
+
+        .history-item { 
+            background: var(--bg-color); padding: 18px; border-radius: 20px; margin-bottom: 18px;
+            box-shadow: 5px 5px 12px var(--shadow-dark), -5px -5px 12px var(--shadow-light);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+
+        /* --- OTP Feature Styles (Only Adding, Not Changing) --- */
+        .otp-box-group { display: flex; justify-content: center; gap: 10px; margin: 25px 0; }
+        .otp-v-field { width: 50px !important; text-align: center; font-size: 22px !important; margin: 0 !important; }
+
+        #app-area, #auth-area, #otp-area { display: none; }
+
+        .google-btn-3d {
+            background: var(--bg-color); border: none; border-radius: 50px; padding: 18px;
+            box-shadow: 8px 8px 16px var(--shadow-dark), -8px -8px 16px var(--shadow-light);
+            cursor: pointer; width: 100%; font-weight: 700; color: #5f6368;
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="auth-area">
+        <div class="google-logo-3d-container">
+            <svg class="google-g-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                <path fill="#4285F4" d="M46.64 24.32c0-1.55-.13-3.04-.36-4.52H24v9.03h12.7c-.55 2.96-2.22 5.48-4.73 7.18L39.95 42.2c4.64-4.27 7.33-10.57 7.33-17.88z"/>
+                <path fill="#FBBC05" d="M10.54 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59L2.56 13.22C.92 16.46 0 20.12 0 24s.92 7.54 2.56 10.78l7.98-6.19z"/>
+                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.95-5.8l-7.98-6.19c-2.21 1.48-5.04 2.34-7.97 2.34-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+            </svg>
+        </div>
+        <h2 style="color: var(--google-blue); font-weight: 800;">SafePay Pro</h2>
+        <button class="google-btn-3d" onclick="loginWithGoogle()">Sign in with Google</button>
+    </div>
+
+    <div id="otp-area">
+        <h3 style="color: var(--google-blue); font-weight: 800;">Verification Required</h3>
+        <p style="font-size: 13px; color: #7f8c8d;">Please enter security code (1234)</p>
+        <div class="otp-box-group">
+            <input type="text" id="v1" class="otp-v-field" maxlength="1" oninput="if(this.value) document.getElementById('v2').focus()">
+            <input type="text" id="v2" class="otp-v-field" maxlength="1" oninput="if(this.value) document.getElementById('v3').focus()">
+            <input type="text" id="v3" class="otp-v-field" maxlength="1" oninput="if(this.value) document.getElementById('v4').focus()">
+            <input type="text" id="v4" class="otp-v-field" maxlength="1">
+        </div>
+        <button class="btn-send" onclick="confirmOTP()">Authorize Login</button>
+    </div>
+
+    <div id="app-area">
+        <div class="header-profile">
+            <div class="header-info">
+                <h4>Verified Account</h4>
+                <p id="user-name-display">User Name</p>
+                <div class="user-uid-box" id="user-uid-display">UID: Loading...</div>
+            </div>
+            <button onclick="auth.signOut()" style="position:absolute; top:22px; right:22px; background:none; border:none; color:#e74c3c; font-size:11px; font-weight:800; cursor:pointer;">LOGOUT</button>
+        </div>
+
+        <div class="balance-box">
+            <div style="font-size:12px; color:#7f8c8d; font-weight:700;">AVAILABLE BALANCE</div>
+            <div style="font-size:42px; font-weight:800; color: var(--google-blue);">₹<span id="balance-display">0</span></div>
+        </div>
+
+        <input type="text" id="target-uid" placeholder="Recipient UID" oninput="checkRecipientName()">
+        <div id="receiver-name-display" style="font-size:12px; font-weight:bold; height:15px; margin-bottom:15px;"></div>
+        <input type="number" id="pay-amount" placeholder="Amount (₹)">
+        <button class="btn-send" id="pay-btn" onclick="sendMoney()">Send Securely</button>
+        <p id="msg" style="font-size:12px; margin-top:18px; font-weight:700;"></p>
+        <div id="history-list" style="margin-top: 45px; text-align: left;"></div>
+    </div>
+</div>
+
+<script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBRxmhRbGjvdUY6pUe9L4bIrRwXL7230Hg",
+      authDomain: "cardpay-50c00.firebaseapp.com",
+      databaseURL: "https://cardpay-50c00-default-rtdb.firebaseio.com",
+      projectId: "cardpay-50c00",
+      storageBucket: "cardpay-50c00.firebasestorage.app",
+      messagingSenderId: "923476412963",
+      appId: "1:923476412963:web:19c6de7aa5666956227f96"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const rtdb = firebase.database();
+    let otpSuccess = false; // Logic for OTP bypass after success
+
+    function loginWithGoogle() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider);
+    }
+
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            document.getElementById('auth-area').style.display = 'none';
+            if(!otpSuccess) {
+                document.getElementById('otp-area').style.display = 'block';
+            } else {
+                runMainApp(user);
+            }
+        } else {
+            otpSuccess = false;
+            document.getElementById('auth-area').style.display = 'block';
+            document.getElementById('otp-area').style.display = 'none';
+            document.getElementById('app-area').style.display = 'none';
+        }
+    });
+
+    function confirmOTP() {
+        const val = document.getElementById('v1').value + document.getElementById('v2').value + 
+                    document.getElementById('v3').value + document.getElementById('v4').value;
+        if(val === "1234") {
+            otpSuccess = true;
+            document.getElementById('otp-area').style.display = 'none';
+            runMainApp(auth.currentUser);
+        } else { alert("Wrong OTP!"); }
+    }
+
+    function runMainApp(user) {
+        document.getElementById('app-area').style.display = 'block';
+        document.getElementById('user-name-display').innerText = user.displayName;
+        document.getElementById('user-uid-display').innerText = "UID: " + user.uid;
+        setupAccount(user);
+        fetchBalance(user.uid);
+        loadHistory(user.uid);
+    }
+
+    // --- All original functions below (Untouched) ---
+    function setupAccount(user) {
+        rtdb.ref('users/' + user.uid).once('value', snap => {
+            if (!snap.exists()) rtdb.ref('users/' + user.uid).set({ name: user.displayName, email: user.email, balance: 100 });
+        });
+    }
+    function fetchBalance(uid) {
+        rtdb.ref('users/' + uid + '/balance').on('value', snap => {
+            document.getElementById('balance-display').innerText = snap.val() || 0;
+        });
+    }
+    function checkRecipientName() {
+        const tid = document.getElementById('target-uid').value.trim();
+        const disp = document.getElementById('receiver-name-display');
+        if (tid.length > 15) {
+            rtdb.ref('users/' + tid + '/name').once('value', snap => {
+                disp.innerText = snap.exists() ? "✓ Account: " + snap.val() : "✕ Invalid UID";
+                disp.style.color = snap.exists() ? "#27ae60" : "#e74c3c";
+            });
+        } else { disp.innerText = ""; }
+    }
+    function sendMoney() {
+        const target = document.getElementById('target-uid').value.trim();
+        const amt = parseInt(document.getElementById('pay-amount').value);
+        const myUid = auth.currentUser.uid;
+        if (!target || isNaN(amt) || amt <= 0 || target === myUid) return;
+        rtdb.ref('users/' + myUid + '/balance').transaction(curr => {
+            if (curr >= amt) return curr - amt;
+        }, (err, committed) => {
+            if (committed) {
+                rtdb.ref('users/' + target + '/balance').transaction(c => (c || 0) + amt);
+                rtdb.ref('transactions').push({
+                    senderId: myUid, senderName: auth.currentUser.displayName,
+                    receiverId: target, receiverName: "Receiver",
+                    amount: amt, timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+            }
+        });
+    }
+    function loadHistory(uid) {
+        const list = document.getElementById('history-list');
+        rtdb.ref('transactions').on('value', snap => {
+            list.innerHTML = "<h4>RECENT ACTIVITY</h4>";
+            snap.forEach(child => {
+                const tx = child.val();
+                if (tx.senderId === uid || tx.receiverId === uid) {
+                    const isSent = tx.senderId === uid;
+                    const div = document.createElement('div');
+                    div.className = "history-item";
+                    div.innerHTML = `<div><b>${isSent ? 'Debit' : 'Credit'}</b></div><b style="color:${isSent ? '#e74c3c' : '#27ae60'}">${isSent ? '-' : '+'} ₹${tx.amount}</b>`;
+                    list.prepend(div);
+                }
+            });
+        });
+    }
+</script>
+</body>
+</html>
