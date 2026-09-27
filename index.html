@@ -245,7 +245,7 @@
                 rtdb.ref('users/' + target + '/balance').transaction(c => (c || 0) + amt);
                 rtdb.ref('transactions').push({
                     senderId: myUid, senderName: auth.currentUser.displayName,
-                    receiverId: target, receiverName: "Receiver",
+                    receiverId: target, receiverName:"receiverName,
                     amount: amt, timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
             }
