@@ -135,7 +135,7 @@
     <!-- ========================================== -->
     <div id="otp-area">
         <h3 style="color: var(--google-blue); font-weight: 800;">Verification Required</h3>
-        <p style="font-size: 13px; color: #7f8c8d;">Please enter security code (1234)</p>
+        <p style="font-size: 13px; color: #7f8c8d;">Please enter security code (1247)</p>
         <div class="otp-box-group">
             <input type="text" id="v1" class="otp-v-field" maxlength="1" oninput="if(this.value) document.getElementById('v2').focus()">
             <input type="text" id="v2" class="otp-v-field" maxlength="1" oninput="if(this.value) document.getElementById('v3').focus()">
@@ -219,7 +219,7 @@
     function confirmOTP() {
         const val = document.getElementById('v1').value + document.getElementById('v2').value + 
                     document.getElementById('v3').value + document.getElementById('v4').value;
-        if(val === "1234") {
+        if(val === "1247") {
             otpSuccess = true;
             document.getElementById('otp-area').style.display = 'none';
             runMainApp(auth.currentUser);
